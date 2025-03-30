@@ -61,11 +61,12 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint32_t adc_value = 0;
+#define YourPassword HONOR-1044ST
+#define YourSSID 13817170910
+
+uint16_t adc_value = 0;
 float voltage = 0.0f;
-char *str = "Hello, world!";
-//uint16_t len = strlen(str);
-uint16_t len = 13;
+
 // 读取 ADC 值
 uint32_t Read_ADC_Value(void)
 {
@@ -87,8 +88,60 @@ uint32_t Read_ADC_Value(void)
 
 // 重定向到USART1
 int _write(int fd, char *ptr, int len) {
-    HAL_UART_Transmit(&huart1, (uint8_t*)ptr, len, 1000);  // 超时1秒
+    HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, 1000);  // 超时1秒
     return len;
+}
+
+// 发送AT指令测试连接
+void ESP8266_Init(void) {
+    char cmd_test[] = "AT\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t*)cmd_test, strlen(cmd_test), 1000);
+    HAL_Delay(1000);
+
+    // 设置为Station模式
+    char cmd_sta[] = "AT+CWMODE=1\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t*)cmd_sta, strlen(cmd_sta), 1000);
+    HAL_Delay(1000);
+
+    // 连接WiFi（替换你的SSID和密码）
+    char cmd_psw[] = "AT+CWJAP=\"HONOR-1044ST\",\"13817170910\"\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t*)cmd_psw, strlen(cmd_psw), 1000);
+    HAL_Delay(5000); // 等待连接
+}
+
+void Send_Data_To_Server(uint16_t data) {
+    // 1.建立TCP连接（替换服务器IP和端口）
+    char tcp_connect[] = "AT+CIPSTART=\"TCP\",\"192.168.3.72\",8080\r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t*)tcp_connect, strlen(tcp_connect), 1000);
+    HAL_Delay(2000);
+
+    // 2. 准备数据内容
+    char data_str[16];
+    sprintf(data_str, "ADC:%.2fV\r\n", data * 3.3f / 4095.0f); // 先格式化数据
+
+    // 3.发送长度声明
+    char send_cmd[32];
+    sprintf(send_cmd, "AT+CIPSEND=%d\r\n", strlen(data_str));
+    HAL_UART_Transmit(&huart2, (uint8_t*)send_cmd, strlen(send_cmd), 1000);
+    HAL_Delay(100);
+
+    // 4. 等待ESP8266返回 ">" 提示符
+//    uint8_t response[2];
+//    HAL_UART_Receive(&huart2, response, 1, 1000); // 读取单个字符
+//    if (response[0] == '>') {
+//        // 5. 发送实际数据
+//        HAL_UART_Transmit(&huart2, (uint8_t*)data_str, strlen(data_str), 1000);
+//        HAL_Delay(100);
+//    } else {
+//        printf("Failed to enter send mode\n");
+//    }
+
+	HAL_UART_Transmit(&huart2, (uint8_t*)data_str, strlen(data_str), 1000);
+
+	HAL_Delay(100);
+
+    // 关闭连接（可选）
+//    HAL_UART_Transmit(&huart2, (uint8_t*)"AT+CIPCLOSE\r\n", 12, 1000);
 }
 
 // 发送AT指令
@@ -136,17 +189,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-//  while (1) {
-//  HAL_UART_Transmit(&huart1, (uint8_t *)str, len, 1000); // 发送字符串
-//  HAL_Delay(1000);
-//  }
-//  }
-
-  // 发送AT指令给ESP01S模块
-//  send_AT_command("AT+RST\\r\\n"); // 重启ESP01S模块
-//  send_AT_command("AT+CWMODE=1\\r\\n"); // 设置ESP01S为Station模式
-//  send_AT_command("AT+CWJAP=\"SSID\",\"password\"\\r\\n"); // 连接到Wi-Fi网络
-  // 其他AT指令
+  ESP8266_Init(); // 初始化WiFi模块
 
   /* USER CODE END 2 */
 
@@ -157,16 +200,10 @@ int main(void)
 	  //写循环执行的代码
 	  //第一步LED 亮 PC0 设置为0
 	  HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
-	  //第二步 延时
-	  HAL_Delay(1000);
-	  //第三步LED 灭
-	  HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
-	  //第四步 延时
-	  HAL_Delay(1000);
+	  HAL_Delay(500);
 
 	  adc_value = Read_ADC_Value();
 	  voltage = adc_value/4095.0 * 3.3f;
-	  HAL_Delay(1000);
 
 //	  HAL_UART_Transmit(&huart1, (uint8_t *)str, len, 1000); // 发送字符串
 //	  HAL_Delay(1000);
@@ -174,6 +211,12 @@ int main(void)
 	  printf("ADC VALUE: %d\r\n", adc_value);
 
 	  printf("ADC VOLTAGE: %.3fV\r\n", voltage);
+
+	  Send_Data_To_Server(adc_value);
+
+	  HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
+
+	  HAL_Delay(500);
 
     /* USER CODE END WHILE */
 
