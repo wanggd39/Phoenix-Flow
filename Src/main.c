@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <unistd.h>  // 提供_write原型
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +42,9 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -50,6 +53,8 @@ ADC_HandleTypeDef hadc1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -58,6 +63,9 @@ static void MX_ADC1_Init(void);
 /* USER CODE BEGIN 0 */
 uint32_t adc_value = 0;
 float voltage = 0.0f;
+char *str = "Hello, world!";
+//uint16_t len = strlen(str);
+uint16_t len = 13;
 // 读取 ADC 值
 uint32_t Read_ADC_Value(void)
 {
@@ -77,6 +85,19 @@ uint32_t Read_ADC_Value(void)
     return adc_value;
 }
 
+// 重定向到USART1
+int _write(int fd, char *ptr, int len) {
+    HAL_UART_Transmit(&huart1, (uint8_t*)ptr, len, 1000);  // 超时1秒
+    return len;
+}
+
+// 发送AT指令
+//void send_AT_command(char* command) {
+//while(*command) {
+//USART_SendData(USART2, (uint16_t) *command++);
+//while(USART_GetFlagStatus(USART2, UART_FLAG_TC) == RESET);
+//}
+//}
 
 /* USER CODE END 0 */
 
@@ -111,7 +132,21 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
+  MX_USART1_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+//  while (1) {
+//  HAL_UART_Transmit(&huart1, (uint8_t *)str, len, 1000); // 发送字符串
+//  HAL_Delay(1000);
+//  }
+//  }
+
+  // 发送AT指令给ESP01S模块
+//  send_AT_command("AT+RST\\r\\n"); // 重启ESP01S模块
+//  send_AT_command("AT+CWMODE=1\\r\\n"); // 设置ESP01S为Station模式
+//  send_AT_command("AT+CWJAP=\"SSID\",\"password\"\\r\\n"); // 连接到Wi-Fi网络
+  // 其他AT指令
 
   /* USER CODE END 2 */
 
@@ -119,17 +154,26 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  // 读取 ADC 值
+	  //写循环执行的代码
+	  //第一步LED 亮 PC0 设置为0
+	  HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+	  //第二步 延时
+	  HAL_Delay(1000);
+	  //第三步LED 灭
+	  HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
+	  //第四步 延时
+	  HAL_Delay(1000);
+
 	  adc_value = Read_ADC_Value();
+	  voltage = adc_value/4095.0 * 3.3f;
+	  HAL_Delay(1000);
 
-	  // 将 ADC 值转换为电压（假设 VREF = 3.3V）
-	  voltage = (adc_value * 3.3f) / 4095.0f;
+//	  HAL_UART_Transmit(&huart1, (uint8_t *)str, len, 1000); // 发送字符串
+//	  HAL_Delay(1000);
 
-	  // 打印 ADC 值和电压（通过串口或其他方式）
-	  //printf("ADC Value: %lu, Voltage: %.2f V\r\n", adc_value, voltage);
+	  printf("ADC VALUE: %d\r\n", adc_value);
 
-	  // 延时 1 秒
-	  HAL_Delay(100);
+	  printf("ADC VOLTAGE: %.3fV\r\n", voltage);
 
     /* USER CODE END WHILE */
 
@@ -215,7 +259,7 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_3;
+  sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -229,18 +273,96 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LED1_Pin */
+  GPIO_InitStruct.Pin = LED1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED1_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
